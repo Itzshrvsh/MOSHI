@@ -84,7 +84,7 @@ echo Memory    : http://127.0.0.1:8765
 echo OpenCode  : http://127.0.0.1:4096
 echo Telegram  : Active (Polling Telegram API)
 echo.
-for /f "delims=" %%m in ('"%PYTHON%" -c "import moshi_config; print(moshi_config.get_model())"') do set "ACTIVE_MODEL=%%m"
+for /f "usebackq delims=" %%m in (`"%PYTHON%" moshi_config.py get`) do set "ACTIVE_MODEL=%%m"
 echo Model     : %ACTIVE_MODEL%
 echo Memory DB : Qdrant + Mem0 (Project Scoped)
 echo.
