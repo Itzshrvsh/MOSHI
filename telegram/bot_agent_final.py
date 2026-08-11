@@ -707,10 +707,17 @@ def _extract_latest_completed_text(messages, existing_ids=None):
 
             ptype = part.get("type")
 
-            # Extract text / content / reasoning
-            val = part.get("text") or part.get("content") or part.get("reasoning") or part.get("value")
-            if isinstance(val, str) and val.strip():
-                text_parts.append(val.strip())
+            # Extract text / content
+            if ptype in ("text", "content", "step-finish"):
+                val = part.get("text") or part.get("content") or part.get("value")
+                if isinstance(val, str) and val.strip():
+                    clean_val = val.strip()
+                    if clean_val.startswith("thought\n"):
+                        clean_val = clean_val[len("thought\n"):].strip()
+                    elif clean_val.startswith("thought:\n"):
+                        clean_val = clean_val[len("thought:\n"):].strip()
+                    if clean_val:
+                        text_parts.append(clean_val)
 
             # Extract tool activity if present
             if ptype in ("tool", "tool-call", "tool_use", "tool-call-start"):
@@ -886,6 +893,37 @@ Relevant long-term memory:
                     error_msg = err
                     break
 
+        # Action verification: Check completed tool calls & disk filesystem
+        tool_events = []
+        if isinstance(messages, list):
+            for msg in messages:
+                if isinstance(msg, dict):
+                    parts = msg.get("parts") if isinstance(msg.get("parts"), list) else []
+                    for part in parts:
+                        if isinstance(part, dict) and part.get("type") in ("tool", "tool-call", "tool_use"):
+                            state = part.get("state") if isinstance(part.get("state"), dict) else {}
+                            st = state.get("status") or part.get("status") or "unknown"
+                            tool_events.append(st)
+
+        completed_tools = [st for st in tool_events if st in ("completed", "success", "done")]
+        action_keywords = ["create", "make", "build", "write", "delete", "remove", "mkdir", "touch", "edit", "add", "modify"]
+        is_action_prompt = any(k in prompt.lower() for k in action_keywords)
+
+        if is_action_prompt and not completed_tools and not changed_files and final_text:
+            claim_keywords = ["successfully created", "created", "successfully added", "successfully written", "successfully made", "was created"]
+            if any(ck in final_text.lower() for ck in claim_keywords):
+                final_text += (
+                    "\n\n⚠️ *Action Verification Warning:* OpenCode recorded NO completed tool execution or file changes on disk for this action."
+                )
+
+        import re
+        folder_match = re.search(r"create (?:a )?folder (?:named )?['\"]?([a-zA-Z0-9_-]+)['\"]?", prompt, re.IGNORECASE)
+        if folder_match:
+            folder_name = folder_match.group(1)
+            target_path = PROJECT_ROOT / folder_name
+            if not target_path.exists():
+                final_text += f"\n\n⚠️ *Filesystem Verification Warning:* Directory `{target_path}` does NOT exist on disk."
+
         # Server-side diagnostic logging (safe, no secrets logged)
         if isinstance(messages, list) and messages:
             last_msg = messages[-1] if isinstance(messages[-1], dict) else {}
@@ -895,6 +933,7 @@ Relevant long-term memory:
             print(
                 f"[OPENCODE LOG] session_id={session_id} role={last_info.get('role')} "
                 f"parts_count={len(last_parts)} part_types={part_types} "
+                f"tool_events={tool_events} "
                 f"has_error={bool(error_msg)} error_msg={error_msg}"
             )
 

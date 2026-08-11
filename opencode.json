@@ -11,6 +11,10 @@
                 "gemma-4-12b-coder-fable5-composer2.5-v1": {
                     "name": "gemma-4-12b-coder-fable5-composer2.5-v1",
                     "modelID": "gemma-4-12b-coder-fable5-composer2.5-v1"
+                },
+                "qwen/qwen2.5-coder-14b": {
+                    "name": "qwen/qwen2.5-coder-14b",
+                    "modelID": "qwen/qwen2.5-coder-14b"
                 }
             }
         }
