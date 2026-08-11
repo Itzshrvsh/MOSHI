@@ -89,6 +89,7 @@ echo "Qdrant    : http://127.0.0.1:6333"
 echo "Memory    : http://127.0.0.1:8765"
 echo "OpenCode  : http://127.0.0.1:4096"
 echo "Telegram  : Active"
-echo "Model     : Qwen 2.5 Coder 14B (qwen/qwen2.5-coder-14b)"
+ACTIVE_MODEL=$($PYTHON -c "import moshi_config; print(moshi_config.get_model())" 2>/dev/null || echo "gemma-4-12b-coder-fable5-composer2.5-v1")
+echo "Model     : $ACTIVE_MODEL"
 echo "============================================================"
 echo ""

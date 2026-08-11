@@ -1,7 +1,10 @@
-import os
+import sys
+from pathlib import Path
 
-os.environ["MEM0_TELEMETRY"] = "false"
-os.environ["POSTHOG_DISABLED"] = "1"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+import moshi_config
 
 from mem0 import Memory
 
@@ -10,7 +13,7 @@ config = {
     "llm": {
         "provider": "lmstudio",
         "config": {
-            "model": "qwen/qwen2.5-coder-14b",
+            "model": moshi_config.get_model(),
             "temperature": 0.0,
             "max_tokens": 2000,
             "lmstudio_base_url": "http://localhost:1234/v1",

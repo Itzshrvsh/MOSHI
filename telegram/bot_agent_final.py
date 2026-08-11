@@ -12,6 +12,7 @@ import moshi_manifest
 import moshi_doctor
 import moshi_process
 import moshi_lifecycle
+import moshi_config
 
 import httpx
 from dotenv import load_dotenv
@@ -1027,6 +1028,29 @@ async def doctor_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
+async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update):
+        return
+    args = context.args
+    if args:
+        new_m = " ".join(args).strip()
+        updated = moshi_config.set_model(new_m)
+        await update.message.reply_text(
+            f"🎯 *Master Model Updated*\n\n"
+            f"New Base Model: `{updated}`\n"
+            "Propagated across master config, `opencode.json`, `mem0`, and environment settings.",
+            parse_mode="Markdown",
+        )
+    else:
+        current_m = moshi_config.get_model()
+        await update.message.reply_text(
+            f"🧠 *MOSHI Active Master Model*\n\n"
+            f"Current Base Model: `{current_m}`\n\n"
+            "To switch model system-wide, send:\n`/model <new_model_name>`",
+            parse_mode="Markdown",
+        )
+
+
 async def user_worker(user_id):
     queue = queues[user_id]
     while True:
@@ -1126,6 +1150,7 @@ def main():
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("new", new_session))
     app.add_handler(CommandHandler("doctor", doctor_command))
+    app.add_handler(CommandHandler("model", model_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     app.run_polling()

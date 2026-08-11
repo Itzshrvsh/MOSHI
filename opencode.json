@@ -11,11 +11,15 @@
                 "qwen25-coder-14b": {
                     "name": "Qwen 2.5 Coder 14B",
                     "modelID": "qwen/qwen2.5-coder-14b"
+                },
+                "gemma-4-12b-coder-fable5-composer2-5-v1": {
+                    "name": "gemma-4-12b-coder-fable5-composer2.5-v1",
+                    "modelID": "gemma-4-12b-coder-fable5-composer2.5-v1"
                 }
             }
         }
     },
-    "model": "lmstudio/qwen25-coder-14b",
+    "model": "lmstudio/gemma-4-12b-coder-fable5-composer2-5-v1",
     "shell": "pwsh",
     "mcp": {
         "moshi-memory": {
