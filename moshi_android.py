@@ -8,9 +8,11 @@ def get_adb_path() -> str:
     adb = shutil.which("adb")
     if adb:
         return adb
+    home = Path.home()
     std_paths = [
-        Path(r"C:\Users\itzsh\Downloads\platform-tools-latest-windows\platform-tools\adb.exe"),
-        Path(r"C:\Users\itzsh\AppData\Local\Android\Sdk\platform-tools\adb.exe")
+        home / "Library" / "Android" / "sdk" / "platform-tools" / "adb",
+        home / "Android" / "Sdk" / "platform-tools" / "adb",
+        home / "AppData" / "Local" / "Android" / "Sdk" / "platform-tools" / "adb.exe"
     ]
     for p in std_paths:
         if p.exists():
@@ -39,12 +41,13 @@ def detect_devices() -> list[dict]:
     return devices
 
 def build_apk(project_path: str) -> dict:
-    gradlew = Path(project_path) / "gradlew.bat"
-    if not gradlew.exists():
-        gradlew_sh = Path(project_path) / "gradlew"
-        cmd = f"cd /d \"{project_path}\" && gradle assembleDebug"
-    else:
+    p = Path(project_path)
+    if (p / "gradlew").exists():
+        cmd = f"cd \"{project_path}\" && ./gradlew assembleDebug"
+    elif (p / "gradlew.bat").exists() and sys.platform == "win32":
         cmd = f"cd /d \"{project_path}\" && gradlew.bat assembleDebug"
+    else:
+        cmd = f"cd \"{project_path}\" && gradle assembleDebug"
 
     try:
         out = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.STDOUT, timeout=300)

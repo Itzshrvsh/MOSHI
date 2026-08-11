@@ -6,8 +6,12 @@ import httpx
 from pathlib import Path
 import moshi_process
 
-def start_tunnel(port: int, cwd: str = r"C:\projects\MOSHI") -> dict:
+PROJECT_ROOT = str(Path(__file__).resolve().parent)
+
+def start_tunnel(port: int, cwd: str = None) -> dict:
     """Asynchronously launch Cloudflare tunnel for port."""
+    if cwd is None:
+        cwd = PROJECT_ROOT
     cmd = f"cloudflared tunnel --url http://127.0.0.1:{port}"
     process_entry = moshi_process.start_process(cmd, cwd=cwd, name=f"tunnel_{port}")
     return process_entry

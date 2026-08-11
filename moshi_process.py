@@ -6,7 +6,10 @@ import re
 import subprocess
 from pathlib import Path
 
-PROCESS_REGISTRY_FILE = Path(r"C:\projects\MOSHI\.moshi\processes.json")
+import signal
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+PROCESS_REGISTRY_FILE = PROJECT_ROOT / ".moshi" / "processes.json"
 
 def _load_registry() -> dict:
     if PROCESS_REGISTRY_FILE.exists():
@@ -26,17 +29,22 @@ def start_process(command: str, cwd: str, name: str = "service") -> dict:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{name}_{int(time.time())}.log"
 
-    # Use PowerShell Start-Process or popen with redirection
-    cmd_str = f"Powershell -Command \"Start-Process -FilePath 'cmd.exe' -ArgumentList '/c {command} > {log_file} 2>&1' -PassThru | Select-Object -ExpandProperty Id\""
-    
-    try:
-        res = subprocess.check_output(cmd_str, shell=True, text=True, cwd=cwd).strip()
-        pid = int(res) if res.isdigit() else None
-    except Exception as e:
-        print("[PROCESS START WARN]", e)
-        # Fallback to Popen
-        with open(log_file, "w", encoding="utf-8") as out:
-            proc = subprocess.Popen(command, shell=True, cwd=cwd, stdout=out, stderr=out)
+    pid = None
+    if sys.platform == "win32":
+        cmd_str = f"Powershell -Command \"Start-Process -FilePath 'cmd.exe' -ArgumentList '/c {command} > {log_file} 2>&1' -PassThru | Select-Object -ExpandProperty Id\""
+        try:
+            res = subprocess.check_output(cmd_str, shell=True, text=True, cwd=cwd).strip()
+            pid = int(res) if res.isdigit() else None
+        except Exception as e:
+            print("[PROCESS START WARN]", e)
+
+    if pid is None:
+        # Standard POSIX or fallback Popen
+        with open(log_file, "a", encoding="utf-8") as out:
+            kwargs = {"shell": True, "cwd": cwd, "stdout": out, "stderr": out}
+            if sys.platform != "win32":
+                kwargs["start_new_session"] = True
+            proc = subprocess.Popen(command, **kwargs)
             pid = proc.pid
 
     entry = {
@@ -63,9 +71,18 @@ def get_process_status(name: str) -> dict:
 
     pid = entry.get("pid")
     if pid:
-        # Verify process active via tasklist
-        out = subprocess.run(f"tasklist /FI \"PID eq {pid}\"", shell=True, capture_output=True, text=True).stdout
-        if str(pid) not in out:
+        is_active = False
+        if sys.platform == "win32":
+            out = subprocess.run(f"tasklist /FI \"PID eq {pid}\"", shell=True, capture_output=True, text=True).stdout
+            is_active = str(pid) in out
+        else:
+            try:
+                os.kill(pid, 0)
+                is_active = True
+            except OSError:
+                is_active = False
+
+        if not is_active:
             entry["status"] = "stopped"
             _save_registry(registry)
 
@@ -98,7 +115,13 @@ def stop_process(name: str) -> bool:
 
     pid = entry.get("pid")
     if pid:
-        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+        if sys.platform == "win32":
+            subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+        else:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
         entry["status"] = "stopped"
         _save_registry(registry)
         return True

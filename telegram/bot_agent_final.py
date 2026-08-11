@@ -6,7 +6,8 @@ import time
 import re
 from pathlib import Path
 
-sys.path.insert(0, r"C:\projects\MOSHI")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 import moshi_manifest
 import moshi_doctor
 import moshi_process
@@ -769,7 +770,7 @@ async def run_agent(update, prompt):
                 if mid:
                     existing_ids.add(mid)
 
-    manifest_context = moshi_manifest.get_project_context(r"C:\projects\MOSHI")
+    manifest_context = moshi_manifest.get_project_context(str(PROJECT_ROOT))
 
     agent_prompt = f"""
 You are MOSHI, an autonomous coding agent.
@@ -778,7 +779,7 @@ User request:
 {prompt}
 
 Project root:
-C:\\projects\\MOSHI
+{PROJECT_ROOT}
 
 Follow AGENTS.md.
 

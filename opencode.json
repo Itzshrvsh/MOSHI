@@ -21,8 +21,8 @@
         "moshi-memory": {
             "type": "local",
             "command": [
-                "C:\\projects\\MOSHI\\mem0\\.venv\\Scripts\\python.exe",
-                "C:\\projects\\MOSHI\\memory_mcp.py"
+                "python",
+                "memory_mcp.py"
             ]
         }
     },

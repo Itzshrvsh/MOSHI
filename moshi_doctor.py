@@ -55,7 +55,7 @@ def check_qdrant() -> dict:
         return {"status": "error", "message": f"Qdrant offline ({e})"}
 
 def check_telegram() -> dict:
-    env_file = Path(r"C:\projects\MOSHI\telegram\.env")
+    env_file = Path(__file__).resolve().parent / "telegram" / ".env"
     if not env_file.exists():
         return {"status": "warning", "message": ".env file missing"}
     content = env_file.read_text(encoding="utf-8")
@@ -65,7 +65,8 @@ def check_telegram() -> dict:
 
 def check_cli_tools() -> dict:
     tools = {}
-    for tool, cmd in [("Python", "python --version"), ("Git", "git --version"), ("PowerShell", "powershell -Command \"$PSVersionTable.PSVersion.Major\"")]:
+    shell_tool = ("PowerShell", 'powershell -Command "$PSVersionTable.PSVersion.Major"') if sys.platform == "win32" else ("Bash", "bash --version")
+    for tool, cmd in [("Python", "python --version"), ("Git", "git --version"), shell_tool]:
         try:
             out = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.STDOUT).strip()
             lines = [l.strip() for l in out.splitlines() if l.strip()]

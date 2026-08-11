@@ -7,16 +7,17 @@ from pathlib import Path
 
 def _check_bin(cmd: str, version_args: str = "--version") -> dict:
     executable = shutil.which(cmd)
-    if not executable:
-        # Check standard Windows paths for adb / android sdk
-        if cmd == "adb":
-            std_adb = Path(r"C:\Users\itzsh\Downloads\platform-tools-latest-windows\platform-tools\adb.exe")
-            if std_adb.exists():
-                executable = str(std_adb)
-            else:
-                std_sdk_adb = Path(r"C:\Users\itzsh\AppData\Local\Android\Sdk\platform-tools\adb.exe")
-                if std_sdk_adb.exists():
-                    executable = str(std_sdk_adb)
+    if not executable and cmd == "adb":
+        home = Path.home()
+        candidates = [
+            home / "Library" / "Android" / "sdk" / "platform-tools" / "adb",
+            home / "Android" / "Sdk" / "platform-tools" / "adb",
+            home / "AppData" / "Local" / "Android" / "Sdk" / "platform-tools" / "adb.exe",
+        ]
+        for cand in candidates:
+            if cand.exists():
+                executable = str(cand)
+                break
 
     if not executable:
         return {"available": False, "version": None, "path": None, "status": "unavailable"}
@@ -40,8 +41,14 @@ def detect_capabilities() -> dict:
     # 2. Android Tools
     caps["adb"] = _check_bin("adb", "version")
     
-    sdk_path = Path(r"C:\Users\itzsh\AppData\Local\Android\Sdk")
-    if sdk_path.exists():
+    home = Path.home()
+    sdk_candidates = [
+        home / "Library" / "Android" / "sdk",
+        home / "Android" / "Sdk",
+        home / "AppData" / "Local" / "Android" / "Sdk",
+    ]
+    sdk_path = next((p for p in sdk_candidates if p.exists()), None)
+    if sdk_path:
         caps["android_sdk"] = {"available": True, "version": "Android SDK Installed", "path": str(sdk_path), "status": "ok"}
     else:
         caps["android_sdk"] = {"available": False, "version": None, "path": None, "status": "unavailable"}
