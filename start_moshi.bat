@@ -84,7 +84,7 @@ echo Memory    : http://127.0.0.1:8765
 echo OpenCode  : http://127.0.0.1:4096
 echo Telegram  : Active (Polling Telegram API)
 echo.
-echo Model     : Qwen 3.5 9B (qwen/qwen3.5-9b)
+echo Model     : Qwen 2.5 Coder 14B (qwen/qwen2.5-coder-14b)
 echo Memory DB : Qdrant + Mem0 (Project Scoped)
 echo.
 echo Keep all service windows open.

@@ -8,14 +8,14 @@
                 "baseURL": "http://127.0.0.1:1234/v1"
             },
             "models": {
-                "qwen35-9b": {
-                    "name": "Qwen 3.5 9B",
-                    "modelID": "qwen/qwen3.5-9b"
+                "qwen25-coder-14b": {
+                    "name": "Qwen 2.5 Coder 14B",
+                    "modelID": "qwen/qwen2.5-coder-14b"
                 }
             }
         }
     },
-    "model": "lmstudio/qwen35-9b",
+    "model": "lmstudio/qwen25-coder-14b",
     "shell": "pwsh",
     "mcp": {
         "moshi-memory": {

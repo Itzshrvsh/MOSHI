@@ -10,7 +10,7 @@ config = {
     "llm": {
         "provider": "lmstudio",
         "config": {
-            "model": "qwen/qwen3.5-9b",
+            "model": "qwen/qwen2.5-coder-14b",
             "temperature": 0.0,
             "max_tokens": 2000,
             "lmstudio_base_url": "http://localhost:1234/v1",
