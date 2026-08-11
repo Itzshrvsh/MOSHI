@@ -1,0 +1,81 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "provider": {
+        "lmstudio": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "LM Studio",
+            "options": {
+                "baseURL": "http://127.0.0.1:1234/v1"
+            },
+            "models": {
+                "qwen35-9b": {
+                    "name": "Qwen 3.5 9B",
+                    "modelID": "qwen/qwen3.5-9b"
+                }
+            }
+        }
+    },
+    "model": "lmstudio/qwen35-9b",
+    "shell": "pwsh",
+    "mcp": {
+        "moshi-memory": {
+            "type": "local",
+            "command": [
+                "C:\\projects\\MOSHI\\mem0\\.venv\\Scripts\\python.exe",
+                "C:\\projects\\MOSHI\\memory_mcp.py"
+            ]
+        }
+    },
+    "permission": {
+        "read": "allow",
+        "write": "allow",
+        "edit": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "bash": "allow",
+        "task": "deny",
+        "question": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "todowrite": "deny",
+        "skill": "deny"
+    },
+    "agent": {
+        "build": {
+            "description": "MOSHI autonomous coding agent",
+            "mode": "primary",
+            "tools": {
+                "read": true,
+                "write": true,
+                "edit": true,
+                "bash": true,
+                "glob": true,
+                "grep": true,
+                "task": false,
+                "question": false,
+                "webfetch": false,
+                "websearch": false,
+                "todowrite": false,
+                "todoread": false,
+                "skill": false,
+                "lsp": false
+            },
+            "permission": {
+                "read": "allow",
+                "write": "allow",
+                "edit": "allow",
+                "glob": "allow",
+                "grep": "allow",
+                "bash": "allow",
+                "task": "deny",
+                "question": "deny",
+                "webfetch": "deny",
+                "websearch": "deny",
+                "todowrite": "deny",
+                "skill": "deny",
+                "lsp": "deny"
+            },
+            "prompt": "You are MOSHI, an autonomous local AI coding agent. Perform all requested operations using available tools. Never claim an operation was performed unless executed and verified. Inspect files before editing. Make minimal targeted changes. Verify changes after editing. Default project root is C:\\projects\\MOSHI. ALWAYS use PowerShell syntax (never use bash-only operators like && or ||). Maintain a persistent project manifest inside .moshi/ (.moshi/project.json, .moshi/architecture.md, .moshi/state.md, .moshi/decisions.md) and sync checkpoints to project memory. Avoid flooding 32K context: redirect large command outputs (>100 lines) to .moshi/logs/ and read tail excerpts. When resuming work, inspect .moshi/ manifest and project memory first. For background services, launch asynchronously with Start-Process/log redirection, poll logs to extract active URLs (e.g. *.trycloudflare.com), and verify process survival."
+        }
+    }
+}
