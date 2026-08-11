@@ -652,6 +652,35 @@ async def _wait_for_session_idle(session_id, timeout=15):
     return True
 
 
+def _extract_opencode_error(item) -> str:
+    """Defensively extract a clean human-readable error message from an OpenCode response item."""
+    if not isinstance(item, dict):
+        return ""
+
+    info = item.get("info") if isinstance(item.get("info"), dict) else item
+    error_obj = info.get("error") if isinstance(info, dict) else item.get("error")
+
+    if not error_obj:
+        return ""
+
+    if isinstance(error_obj, str):
+        return error_obj.strip()
+
+    if isinstance(error_obj, dict):
+        data = error_obj.get("data") if isinstance(error_obj.get("data"), dict) else {}
+        msg = (
+            data.get("message")
+            or data.get("error")
+            or error_obj.get("message")
+            or error_obj.get("name")
+            or str(error_obj)
+        )
+        if isinstance(msg, str) and msg.strip():
+            return msg.strip()
+
+    return str(error_obj)
+
+
 def _extract_latest_completed_text(messages, existing_ids=None):
     if isinstance(messages, dict):
         messages = messages.get("messages", messages.get("data", []))
@@ -848,66 +877,62 @@ Relevant long-term memory:
         except Exception:
             pass
 
-        # Check for errors in result or messages
-        error_msg = None
-        if isinstance(result, dict):
-            info = result.get("info") if isinstance(result.get("info"), dict) else result
-            err = info.get("error") if isinstance(info, dict) else None
-            if err:
-                if isinstance(err, dict):
-                    error_msg = err.get("data", {}).get("message") or err.get("name") or str(err)
-                else:
-                    error_msg = str(err)
-
+        # 1. Check for explicit OpenCode errors defensively
+        error_msg = _extract_opencode_error(result)
         if not error_msg and isinstance(messages, list):
-            for item in messages:
-                if isinstance(item, dict):
-                    info = item.get("info") if isinstance(item.get("info"), dict) else item
-                    err = info.get("error") if isinstance(info, dict) else None
-                    if err:
-                        if isinstance(err, dict):
-                            error_msg = err.get("data", {}).get("message") or err.get("name") or str(err)
-                        else:
-                            error_msg = str(err)
-                        break
+            for item in reversed(messages):
+                err = _extract_opencode_error(item)
+                if err:
+                    error_msg = err
+                    break
+
+        # Server-side diagnostic logging (safe, no secrets logged)
+        if isinstance(messages, list) and messages:
+            last_msg = messages[-1] if isinstance(messages[-1], dict) else {}
+            last_info = last_msg.get("info") if isinstance(last_msg.get("info"), dict) else last_msg
+            last_parts = last_msg.get("parts") if isinstance(last_msg.get("parts"), list) else []
+            part_types = [p.get("type") for p in last_parts if isinstance(p, dict)]
+            print(
+                f"[OPENCODE LOG] session_id={session_id} role={last_info.get('role')} "
+                f"parts_count={len(last_parts)} part_types={part_types} "
+                f"has_error={bool(error_msg)} error_msg={error_msg}"
+            )
 
         elapsed = int(time.monotonic() - task_started_at.get(chat_id, time.monotonic()))
         minutes, seconds = divmod(elapsed, 60)
         elapsed_text = f"{minutes}m {seconds:02d}s" if minutes else f"{seconds}s"
 
+        # STATE 2: OPENCODE ERROR
         if error_msg:
-            # Report Error State to User (Do not falsely claim completion!)
             await update_status(
                 bot,
                 chat_id,
                 (
                     "🧠 *MOSHI AGENT DASHBOARD*\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                    "❌ *TASK FAILED*\n"
+                    "❌ *OPENCODE ERROR*\n"
                     f"🎯 *Task:* `{_shorten(prompt, 100)}`\n"
                     f"⏱️ *Duration:* {elapsed_text}\n\n"
                     f"⚠️ *Error:* `{_shorten(error_msg, 200)}`\n\n"
-                    "💡 *Troubleshooting:* If LM Studio returned 'Model is unloaded', ensure LM Studio is running and the model is loaded into memory."
+                    "💡 *Troubleshooting:* Please ensure LM Studio is running and the configured model is loaded into memory."
                 ),
                 force=True,
             )
             await update.message.reply_text(
-                f"❌ *MOSHI TASK FAILED*\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🎯 *Task:* {prompt}\n"
-                f"⚠️ *Error:* `{error_msg}`\n\n"
-                "💡 *Troubleshooting:* Please ensure LM Studio is running and your chosen model is loaded into memory in LM Studio."
+                f"❌ *OpenCode Error*\n\n"
+                f"{error_msg}\n\n"
+                f"💡 *Troubleshooting:* Start/load the configured LM Studio model and try again."
             )
             return
 
+        # STATE 1 & STATE 3: SUCCESS OR UNKNOWN EXTRACTION FAILURE
         if not final_text:
             if changed_files:
                 final_text = f"Executed code changes across {len(changed_files)} file(s)."
             else:
-                final_text = "⚠️ OpenCode completed turn, but output no response text or file edits."
+                final_text = "⚠️ OpenCode completed, but no final response text was returned."
 
-        # Edit Dashboard to Final Completed State
-        status_header = "✅ *TASK COMPLETED*" if (changed_files or final_text) else "⚠️ *TASK FINISHED (NO CHANGES)*"
+        status_header = "✅ *TASK COMPLETED*" if (changed_files or (final_text and not final_text.startswith("⚠️"))) else "⚠️ *TASK FINISHED (NO CHANGES)*"
         await update_status(
             bot,
             chat_id,
@@ -922,6 +947,26 @@ Relevant long-term memory:
             ),
             force=True,
         )
+
+        report_parts = [
+            "✅ *MOSHI TASK COMPLETE*",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"🎯 *Task:* {prompt}",
+            f"⏱️ *Duration:* {elapsed_text}",
+        ]
+
+        if changed_files:
+            report_parts.append("\n📁 *Changed Files:*")
+            for f in dict.fromkeys(changed_files):
+                report_parts.append(f"• `{f}`")
+
+        if task_tunnel_url.get(chat_id):
+            report_parts.append(f"\n🌐 *Public Tunnel URL:*\n{task_tunnel_url[chat_id]}")
+
+        report_parts.extend(["\n🤖 *Agent Response:*", final_text])
+
+        full_report = "\n".join(report_parts)
+        await send_long(update, full_report)
 
         # Build Rich Final Report Message
         report_parts = [
