@@ -838,24 +838,76 @@ Relevant long-term memory:
         except Exception:
             pass
 
-        if not final_text:
-            final_text = "⚠️ OpenCode completed turn, but final response text could not be extracted."
+        # Check for errors in result or messages
+        error_msg = None
+        if isinstance(result, dict):
+            info = result.get("info") if isinstance(result.get("info"), dict) else result
+            err = info.get("error") if isinstance(info, dict) else None
+            if err:
+                if isinstance(err, dict):
+                    error_msg = err.get("data", {}).get("message") or err.get("name") or str(err)
+                else:
+                    error_msg = str(err)
+
+        if not error_msg and isinstance(messages, list):
+            for item in messages:
+                if isinstance(item, dict):
+                    info = item.get("info") if isinstance(item.get("info"), dict) else item
+                    err = info.get("error") if isinstance(info, dict) else None
+                    if err:
+                        if isinstance(err, dict):
+                            error_msg = err.get("data", {}).get("message") or err.get("name") or str(err)
+                        else:
+                            error_msg = str(err)
+                        break
 
         elapsed = int(time.monotonic() - task_started_at.get(chat_id, time.monotonic()))
         minutes, seconds = divmod(elapsed, 60)
         elapsed_text = f"{minutes}m {seconds:02d}s" if minutes else f"{seconds}s"
 
+        if error_msg:
+            # Report Error State to User (Do not falsely claim completion!)
+            await update_status(
+                bot,
+                chat_id,
+                (
+                    "🧠 *MOSHI AGENT DASHBOARD*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "❌ *TASK FAILED*\n"
+                    f"🎯 *Task:* `{_shorten(prompt, 100)}`\n"
+                    f"⏱️ *Duration:* {elapsed_text}\n\n"
+                    f"⚠️ *Error:* `{_shorten(error_msg, 200)}`\n\n"
+                    "💡 *Troubleshooting:* If LM Studio returned 'Model is unloaded', ensure LM Studio is running and the model is loaded into memory."
+                ),
+                force=True,
+            )
+            await update.message.reply_text(
+                f"❌ *MOSHI TASK FAILED*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🎯 *Task:* {prompt}\n"
+                f"⚠️ *Error:* `{error_msg}`\n\n"
+                "💡 *Troubleshooting:* Please ensure LM Studio is running and your chosen model is loaded into memory in LM Studio."
+            )
+            return
+
+        if not final_text:
+            if changed_files:
+                final_text = f"Executed code changes across {len(changed_files)} file(s)."
+            else:
+                final_text = "⚠️ OpenCode completed turn, but output no response text or file edits."
+
         # Edit Dashboard to Final Completed State
+        status_header = "✅ *TASK COMPLETED*" if (changed_files or final_text) else "⚠️ *TASK FINISHED (NO CHANGES)*"
         await update_status(
             bot,
             chat_id,
             (
                 "🧠 *MOSHI AGENT DASHBOARD*\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                "✅ *TASK COMPLETED*\n"
+                f"{status_header}\n"
                 f"🎯 *Task:* `{_shorten(prompt, 100)}`\n"
                 f"⏱️ *Duration:* {elapsed_text}\n\n"
-                "📊 *Result Summary:* Successfully executed and verified.\n"
+                f"📊 *Result Summary:* {'File edits applied' if changed_files else 'Agent turn finished.'}\n"
                 + (f"🌐 *Public URL:* `{task_tunnel_url[chat_id]}`\n" if task_tunnel_url.get(chat_id) else "")
             ),
             force=True,

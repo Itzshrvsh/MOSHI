@@ -56,7 +56,7 @@ def set_model(new_model: str) -> str:
         try:
             opencode_data = json.loads(OPENCODE_FILE.read_text(encoding="utf-8"))
             # Sanitize model key for opencode model registry
-            model_key = re.sub(r"[^a-zA-Z0-9_-]", "-", new_model).lower()
+            model_key = re.sub(r"[^a-zA-Z0-9_.-]", "-", new_model)
             
             opencode_data.setdefault("provider", {}).setdefault("lmstudio", {}).setdefault("models", {})[model_key] = {
                 "name": new_model,

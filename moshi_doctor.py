@@ -16,16 +16,35 @@ OPENCODE_URL = "http://127.0.0.1:4096"
 MEMORY_URL = "http://127.0.0.1:8765"
 QDRANT_URL = "http://127.0.0.1:6333"
 
+import moshi_config
+
 def check_lmstudio() -> dict:
+    active_model = moshi_config.get_model()
     try:
         r = httpx.get(f"{LMSTUDIO_URL}/models", timeout=3.0)
         if r.status_code == 200:
-            models = r.json().get("data", [])
-            qwen = next((m for m in models if "qwen" in m.get("id", "").lower()), None)
+            try:
+                test_resp = httpx.post(
+                    f"{LMSTUDIO_URL}/chat/completions",
+                    json={"model": active_model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1},
+                    timeout=2.0
+                )
+                if test_resp.status_code == 400 and "Model is unloaded" in test_resp.text:
+                    return {
+                        "status": "warning",
+                        "message": f"Model '{active_model}' is unloaded in LM Studio! Please load it in LM Studio."
+                    }
+            except httpx.TimeoutException:
+                return {
+                    "status": "ok",
+                    "model_loaded": f"{active_model} (loading/busy)"
+                }
+            except Exception:
+                pass
+
             return {
                 "status": "ok",
-                "model_loaded": qwen["id"] if qwen else (models[0]["id"] if models else "No model loaded"),
-                "models_count": len(models)
+                "model_loaded": active_model,
             }
     except Exception as e:
         return {"status": "error", "message": f"LM Studio offline ({e})"}
