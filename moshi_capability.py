@@ -72,9 +72,36 @@ def detect_capabilities() -> dict:
     # 4. Local AI & Services
     try:
         r = httpx.get("http://127.0.0.1:1234/v1/models", timeout=2.0)
-        caps["lm_studio"] = {"available": r.status_code == 200, "status": "ok" if r.status_code == 200 else "warning"}
+        if r.status_code == 200:
+            import moshi_config
+            active_model = moshi_config.get_model()
+            is_ready = True
+            model_info = f"Active: {active_model}"
+            try:
+                test_r = httpx.post(
+                    "http://127.0.0.1:1234/v1/chat/completions",
+                    json={"model": active_model, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                    timeout=1.5
+                )
+                if test_r.status_code == 400 and "Model is unloaded" in test_r.text:
+                    is_ready = False
+                    model_info = f"Model '{active_model}' Unloaded in LM Studio"
+            except httpx.TimeoutException:
+                is_ready = True
+                model_info = f"Active: {active_model} (Busy)"
+            except Exception:
+                pass
+
+            caps["lm_studio"] = {
+                "available": True,
+                "ai_ready": is_ready,
+                "version": model_info,
+                "status": "ok" if is_ready else "warning"
+            }
+        else:
+            caps["lm_studio"] = {"available": False, "ai_ready": False, "status": "unavailable"}
     except Exception:
-        caps["lm_studio"] = {"available": False, "status": "unavailable"}
+        caps["lm_studio"] = {"available": False, "ai_ready": False, "status": "unavailable"}
 
     try:
         r = httpx.get("http://127.0.0.1:4096/session", timeout=2.0)

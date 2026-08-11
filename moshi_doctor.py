@@ -104,26 +104,38 @@ def run_doctor_diagnostics() -> dict:
     
     caps = moshi_capability.detect_capabilities()
     all_ok = True
+    ai_ready = caps.get("lm_studio", {}).get("ai_ready", True)
 
     for tool_name, info in caps.items():
         st = info.get("status", "unavailable")
         avail = info.get("available", False)
         
+        if tool_name in ("python", "git", "lm_studio", "opencode", "memory", "qdrant"):
+            if st != "ok":
+                all_ok = False
+
         if st == "ok" and avail:
             badge = "✓ OK"
             details = info.get("version") or info.get("path") or ""
             print(f"{tool_name.upper():20} : {badge} {f'({details})' if details else ''}")
         elif st == "warning":
             badge = "⚠️ WARN"
-            print(f"{tool_name.upper():20} : {badge}")
+            details = info.get("version") or info.get("message") or ""
+            print(f"{tool_name.upper():20} : {badge} {f'({details})' if details else ''}")
         else:
             badge = "❌ ABSENT"
             print(f"{tool_name.upper():20} : {badge}")
 
     print("==================================================")
-    print(f"Overall Health: {'✅ MOSHI 2.0 READY' if all_ok else '⚠️ SOME SERVICES ABSENT'}")
+    if all_ok and ai_ready:
+        health_text = "✅ MOSHI 2.0 READY"
+    elif caps.get("lm_studio", {}).get("available") and not ai_ready:
+        health_text = "⚠️ SERVICES RUNNING, AI NOT READY (Model Unloaded in LM Studio)"
+    else:
+        health_text = "⚠️ SOME SERVICES ABSENT OR UNHEALTHY"
+    print(f"Overall Health: {health_text}")
     print("==================================================\n")
-    return {"healthy": all_ok, "details": caps}
+    return {"healthy": all_ok and ai_ready, "details": caps}
 
 if __name__ == "__main__":
     run_doctor_diagnostics()
