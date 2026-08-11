@@ -653,67 +653,77 @@ async def _wait_for_session_idle(session_id, timeout=15):
 
 
 def _extract_latest_completed_text(messages, existing_ids=None):
-    existing_ids = existing_ids or set()
-
     if isinstance(messages, dict):
         messages = messages.get("messages", messages.get("data", []))
 
-    if not isinstance(messages, list):
+    if not isinstance(messages, list) or not messages:
         return ""
 
-    candidates = []
-
-    for item in messages:
+    def _parse_message_text(item):
         if not isinstance(item, dict):
-            continue
+            return ""
 
         info = item.get("info") if isinstance(item.get("info"), dict) else item
         parts = item.get("parts") if isinstance(item.get("parts"), list) else []
 
         if info.get("role") != "assistant":
-            continue
+            return ""
 
-        message_id = info.get("id") or item.get("id")
-        if existing_ids and message_id in existing_ids:
-            continue
-
-        has_tool_call = False
         text_parts = []
+        tool_summaries = []
 
         for part in parts:
             if not isinstance(part, dict):
                 continue
 
             ptype = part.get("type")
+
+            # Extract text / content / reasoning
+            val = part.get("text") or part.get("content") or part.get("reasoning") or part.get("value")
+            if isinstance(val, str) and val.strip():
+                text_parts.append(val.strip())
+
+            # Extract tool activity if present
             if ptype in ("tool", "tool-call", "tool_use", "tool-call-start"):
-                has_tool_call = True
+                tool_name = part.get("tool") or part.get("name") or "tool"
+                state = part.get("state") if isinstance(part.get("state"), dict) else {}
+                title = state.get("title") or part.get("title") or ""
+                if title:
+                    tool_summaries.append(f"• Executed `{tool_name}`: {title}")
+                else:
+                    tool_summaries.append(f"• Executed `{tool_name}`")
 
-            if ptype == "text":
-                val = part.get("text")
-                if isinstance(val, str) and val.strip():
-                    text_parts.append(val.strip())
-
+        # Top level text fallback
         text = "\n".join(text_parts).strip()
         if not text and isinstance(item.get("text"), str):
             text = item["text"].strip()
+        if not text and isinstance(item.get("content"), str):
+            text = item["content"].strip()
 
-        if text:
-            candidates.append({
-                "id": message_id,
-                "text": text,
-                "has_tool_call": has_tool_call,
-                "time": (
-                    info.get("time", {}).get("completed", 0)
-                    if isinstance(info.get("time"), dict)
-                    else 0
-                ),
-            })
+        if not text and tool_summaries:
+            text = "⚙️ *Actions Executed:*\n" + "\n".join(tool_summaries)
 
-    if not candidates:
-        return ""
+        return text
 
-    candidates.sort(key=lambda x: x.get("time") or 0)
-    return candidates[-1]["text"]
+    # Pass 1: Check newest messages excluding existing_ids
+    for item in reversed(messages):
+        if not isinstance(item, dict):
+            continue
+        info = item.get("info") if isinstance(item.get("info"), dict) else item
+        mid = info.get("id") or item.get("id")
+        if existing_ids and mid in existing_ids:
+            continue
+        txt = _parse_message_text(item)
+        if txt:
+            return txt
+
+    # Pass 2: Fallback to newest assistant message without existing_ids filter
+    for item in reversed(messages):
+        txt = _parse_message_text(item)
+        if txt:
+            return txt
+
+    return ""
 
 
 async def send_long(update, text):
